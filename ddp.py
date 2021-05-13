@@ -3,76 +3,87 @@ import numpy as np
 import matplotlib.pylab as plt
 from numpy import linalg
 
-T = 10 #T+1 points
-m = 1.
-s0 = np.array([[10.],[-3.]])
-starg = np.array([[0.],[0.]])
-sweight = 1.
+
+T = 1000
+N = 1000 #N+1 points
+x0 = np.array([[2.],[2.]]) #contrainte
+xtarg = np.array([[0.],[0.]])
+xweight = 1.
 uweight = 1.
-sweightT = 1.
+xweightT = 1.
 
-u = np.zeros((2,T)) #commande en vitesse : vx,vy ; nu * T
-Cs = sweight*np.eye(s0.shape[0])
+u = np.zeros((2,N)) #commande en vitesse : vx,vy ; nu * N
+Cx = xweight*np.eye(x0.shape[0])
 Cu = uweight*np.eye(u.shape[0])
-CsT = sweightT*np.eye(s0.shape[0])
-dt = 1/T
-s=np.tile(s0,(1,T+1)) #ns * T+1 #attention :  dtype float...
+CxT = xweightT*np.eye(x0.shape[0])
+dt = T/N
+x=np.tile(x0,(1,N+1)) #nx * N+1 #attention :  dtype float...
 
-assert(s.shape==(2,T+1))
-assert(u.shape==(2,T))
+assert(x.shape==(2,N+1))
+assert(u.shape==(2,N))
 
-def next_state(s,u):
-    return s + u*dt
+def next_state(x,u):
+    return x + u*dt
 
-def cost(s,u):
-    return 0.5*(s-starg).T@Cs@(s-starg) + 0.5*u.T@Cu@u
+def cost(x,u):
+    return 0.5*(x-xtarg).T@Cx@(x-xtarg) + 0.5*u.T@Cu@u
 
-def finalcost(s):
-    return 0.5*(s-starg).T@CsT@(s-starg)
+def Lx(x):
+    return Cx@(x-xtarg)
 
-def grad_finalcost(s):
-    return CsT@(s-starg)
+def Lu(u):
+    return Cu@u
 
-def hess_finalcost():
-    return CsT
+def Lxx():
+    return Cx
 
-def calcul_cout_et_affichage(s,u):
+def Luu():
+    return Cu
+
+def finalcost(x):
+    return 0.5*(x-xtarg).T@CxT@(x-xtarg)
+
+def LxT(x):
+    return CxT@(x-xtarg)
+
+def LxxT():
+    return CxT
+
+def calcul_cout_et_affichage(x,u):
     sumcosts = 0.
-    for t in range(0,T):
-        st = s[:,t:t+1]
+    for t in range(0,N):
+        xt = x[:,t:t+1]
         ut = u[:,t:t+1]
-        sumcosts += cost(st,ut)
-        s[:,t+1:t+2] = next_state(st,ut)
-    sumcosts += finalcost(s[:,T:T+1])
+        sumcosts += cost(xt,ut)
+        x[:,t+1:t+2] = next_state(xt,ut)
+    sumcosts += finalcost(x[:,N:N+1])
     print("cout :")
     print(sumcosts)
-    print("s=")
-    print(s)
+    print("x=")
+    print(x)
     print("u=")
     print(u)
-    plt.scatter(s[0:1,:],s[1:2,:])
-
-######
+    plt.scatter(x[0:1,:],x[1:2,:])
 
 Fx = np.eye(2)
 Fu = dt*np.eye(2)
 
-def backwardpass(s):  
-    Vx = [] #termes d'ordre 1 de T a 0
-    Vxx = [] #termes d'ordre 2 de T a 0
-    k = [] #gains de T a 0
-    K = [] #gains de T a 0
+def backwardpass(x):
+    Vx = [] #termes d'ordre 1 de N a 0
+    Vxx = [] #termes d'ordre 2 de N a 0
+    k = [] #gains de N a 0
+    K = [] #gains de N a 0
     
     #at time T : final cost
-    Vx.append(grad_finalcost(s[:,-1:]))
-    Vxx.append(hess_finalcost())
+    Vx.append(LxT(x[:,-1:]))
+    Vxx.append(LxxT())
 
-    for t in range(T-1,-1,-1): #T-1 a 0
+    for t in range(N-1,-1,-1): #N-1 a 0
         #at time t < T
-        Qx = Cs@s[:,t:t+1] + Fx.T@Vx[-1]
-        Qu = Cu@u[:,t:t+1] + Fu.T@Vx[-1]
-        Qxx = Cs + Fx.T@Vxx[-1]@Fx 
-        Quu = Cu + Fu.T@Vxx[-1]@Fu
+        Qx = Lx(x[:,t:t+1]) + Fx.T@Vx[-1]
+        Qu = Lu(u[:,t:t+1]) + Fu.T@Vx[-1]
+        Qxx = Lxx() + Fx.T@Vxx[-1]@Fx 
+        Quu = Luu() + Fu.T@Vxx[-1]@Fu
         Qxu = Fx.T@Vxx[-1]@Fu #+Lxu...
         Qux = Fu.T@Vxx[-1]@Fx #+Lux...
         k.append(np.linalg.inv(Quu)@Qu)
@@ -81,15 +92,14 @@ def backwardpass(s):
         Vxx.append(Qxx-Qxu@K[-1])
     return k,K
 
-def forwardpass(k,K,u,s):
-    for t in range (T):
-        u[:,t:t+1]=-k[-1]-K[-1]@s[:,t:t+1]
+def forwardpass(k,K,x):
+    for t in range (N):
+        u[:,t:t+1]=-k[-1]-K[-1]@x[:,t:t+1]
         k.pop()
         K.pop()
-        s[:,t+1:t+2] = next_state(s[:,t:t+1],u[:,t:t+1])
-    return s,u
+        x[:,t+1:t+2] = next_state(x[:,t:t+1],u[:,t:t+1])
+    return x,u
 
-k,K = backwardpass(s)
-s,u = forwardpass(k,K,u,s)
-
-calcul_cout_et_affichage(s,u)
+k,K = backwardpass(x)
+x,u = forwardpass(k,K,x)
+calcul_cout_et_affichage(x,u)
