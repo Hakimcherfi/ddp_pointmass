@@ -18,9 +18,6 @@ xweightT = 1.
 assert((dimx,1)==x0.shape)
 assert((dimx,1)==xtarg.shape)
 u = np.zeros((dimu,N)) #commande en vitesse : vx,vy ; nu * N
-Cx = xweight*np.eye(dimx)
-Cu = uweight*np.eye(dimu)
-CxT = xweightT*np.eye(dimx)
 dt = T/N
 x=np.tile(x0,(1,N+1)) #nx * N+1 #attention :  dtype float...
 Fx = np.eye(dimx)
@@ -29,29 +26,67 @@ Fu = dt*np.eye(dimu)
 def next_state(x,u):
     return x + u*dt
 
+def costx(x):
+    Cx = xweight*np.eye(dimx)
+    return 0.5*(x-xtarg).T@Cx@(x-xtarg)
+
+def costu(u):
+    Cu = uweight*np.eye(dimu)
+    return 0.5*u.T@Cu@u
+
 def cost(x,u):
-    return 0.5*(x-xtarg).T@Cx@(x-xtarg) + 0.5*u.T@Cu@u
-
-def Lx(x):
-    return Cx@(x-xtarg)
-
-def Lu(u):
-    return Cu@u
-
-def Lxx():
-    return Cx
-
-def Luu():
-    return Cu
-
+    return costx(x)+costu(u)
+    
 def finalcost(x):
+    CxT = xweightT*np.eye(dimx)
     return 0.5*(x-xtarg).T@CxT@(x-xtarg)
 
-def LxT(x):
-    return CxT@(x-xtarg)
+def gradient(f):
+    def fbis(x,eps=0.0001):
+        dim = x.shape[0]
+        grad = np.zeros((dim,1))
+        for n in range(dim):
+            h = np.zeros((dim,1))
+            h[n:n+1,:] = eps
+            grad[n:n+1,:]=((f(x+h)-f(x-h))/(2*eps))
+        return grad
+    return fbis
 
-def LxxT():
-    return CxT
+def hessien(f):
+    def fbis(x,eps=0.0001):
+        dim = x.shape[0]
+        hess = np.zeros((dim,dim))
+        for n in range(dim):
+            h = np.zeros((dim,1))
+            h[n:n+1,:]=eps
+            hess[n:n+1,n:n+1] = (f(x+h)+f(x-h)-2*f(x))/(eps**2)
+        for n in range(dim):
+            for m in range(n+1,dim):
+                h = np.zeros((dim,1))
+                h[n:n+1,:]=eps
+                h[m:m+1,:]=eps
+                hess[n:n+1,m:m+1]=0.5*((f(x+h)+f(x-h)-2*f(x))/(eps**2)-hess[n:n+1,n:n+1]-hess[m:m+1,m:m+1])
+                hess[m:m+1,n:n+1]=hess[n:n+1,m:m+1]
+        return hess
+    return fbis
+
+def Lx(x):
+    return gradient(costx)(x)
+
+def Lu(u):
+    return gradient(costu)(u)
+
+def Lxx(x):
+    return hessien(costx)(x)
+
+def Luu(u):
+    return hessien(costu)(u)
+
+def LxT(x):
+    return gradient(finalcost)(x)
+
+def LxxT(x):
+    return hessien(finalcost)(x)
 
 def backwardpass(x,u):
     Vx = [] #termes d'ordre 1 de N a 0
@@ -61,14 +96,14 @@ def backwardpass(x,u):
     
     #at time T : final cost
     Vx.append(LxT(x[:,-1:]))
-    Vxx.append(LxxT())
+    Vxx.append(LxxT(x[:,-1:]))
 
     for t in range(N-1,-1,-1): #N-1 a 0
         #at time t < T
         Qx = Lx(x[:,t:t+1]) + Fx.T@Vx[-1]
         Qu = Lu(u[:,t:t+1]) + Fu.T@Vx[-1]
-        Qxx = Lxx() + Fx.T@Vxx[-1]@Fx 
-        Quu = Luu() + Fu.T@Vxx[-1]@Fu
+        Qxx = Lxx(x[:,t:t+1]) + Fx.T@Vxx[-1]@Fx 
+        Quu = Luu(u[:,t:t+1]) + Fu.T@Vxx[-1]@Fu
         Qxu = Fx.T@Vxx[-1]@Fu #+Lxu...
         Qux = Fu.T@Vxx[-1]@Fx #+Lux...
         k.append(np.linalg.inv(Quu)@Qu)
