@@ -4,17 +4,20 @@ import matplotlib.pylab as plt
 from numpy import linalg
 
 T = 10
-N = 10 #N+1 points
+N = 1000 #N+1 points
 x0 = np.array([[-2.],[-2.]]) #contrainte
-xtarg = np.array([[3.],[1.]])
+xtarg = np.array([[2.],[2.1]])
 dimx = 2
 dimu = 2
 xweight = 1.
 uweight = 1.
 xweightT = 1.
+xsphere = np.array([[0.],[0.]]) #centre sphere
+Rsphere = .5 #vrai rayon sphere
+distsecu = .2 #ajout a variable precedente
 
 #####
-
+assert((dimx,1)==xsphere.shape)
 assert((dimx,1)==x0.shape)
 assert((dimx,1)==xtarg.shape)
 u = np.zeros((dimu,N)) #commande en vitesse : vx,vy ; nu * N
@@ -26,9 +29,20 @@ Fu = dt*np.eye(dimu)
 def next_state(x,u):
     return x + u*dt
 
+def costobstacle(x):
+    distance = np.linalg.norm(x-xsphere)
+    if (distance > Rsphere + distsecu):
+        return 0.
+    else:
+        if (distance <= Rsphere):
+            d = 0
+        else :
+            d = distance - Rsphere
+        return (d-distsecu)**2
+                
 def costx(x):
     Cx = xweight*np.eye(dimx)
-    return 0.5*(x-xtarg).T@Cx@(x-xtarg)
+    return 0.5*(x-xtarg).T@Cx@(x-xtarg) + 100*costobstacle(x)
 
 def costu(u):
     Cu = uweight*np.eye(dimu)
@@ -124,22 +138,36 @@ def forwardpass(k,K,x,u):
     u+=du
     return x,u
 
-def calcul_cout_et_affichage(x,u):
+def calcul_cout(x,u):
     sumcosts = 0.
     for t in range(0,N):
         sumcosts += cost(x[:,t:t+1],u[:,t:t+1])
     sumcosts += finalcost(x[:,N:N+1])
-    print("cout :")
-    print(sumcosts)
-    print("x=")
-    print(x)
-    print("u=")
-    print(u)
+    return sumcosts
+
+def scatter_x(x,cercle=False):
+    figure, axes = plt.subplots()
     if (dimx==2):
+        if(cercle):
+            draw_circle = plt.Circle((xsphere[0:1,:], xsphere[1:2,:]), Rsphere,fill=False)
+            draw_circle2 = plt.Circle((xsphere[0:1,:], xsphere[1:2,:]), Rsphere+distsecu,fill=False)
+            axes.add_artist(draw_circle)
+            axes.add_artist(draw_circle2)
         plt.scatter(x[0:1,:],x[1:2,:])
     if(dimx==1):
         plt.scatter(x[0:1,:],np.zeros((1,x[0:1,:].shape[1])))
+    plt.show()
+    
+def calcul_cout_et_affichage(x,u):
+    print(calcul_cout(x,u))
+    scatter_x(x,True)
 
-k,K = backwardpass(x,u)
-x,u = forwardpass(k,K,x,u)
+def ddp(x,u,k):
+    for i in range(k):
+        k,K = backwardpass(x,u)
+        x,u = forwardpass(k,K,x,u)
+        print(calcul_cout(x,u))
+    return x,u
+
+x,u=ddp(x,u,10)
 calcul_cout_et_affichage(x,u)
