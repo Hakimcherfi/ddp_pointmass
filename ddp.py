@@ -3,31 +3,33 @@ import numpy as np
 import matplotlib.pylab as plt
 from numpy import linalg
 
-T = 10
-N = 1000 #N+1 points
-x0 = np.array([[-2.],[-2.]]) #contrainte
-xtarg = np.array([[2.],[2.1]])
-dimx = 2
+T = 100 #T+1 points
+dt = 0.01
+x0 = np.array([[-2.],[-2.],[0.],[0.]]) #contrainte
+xtarg = np.array([[2.],[2.1],[0.],[0.]])
+dimx = 4
 dimu = 2
-xweight = 1.
+xweight = 1000.
 uweight = 1.
 xweightT = 1.
 xsphere = np.array([[0.],[0.]]) #centre sphere
 Rsphere = .5 #vrai rayon sphere
-distsecu = .2 #ajout a variable precedente
+distsecu = 1. #ajout a variable precedente
 
 #####
-assert((dimx,1)==xsphere.shape)
+dimspace = int(dimx/2)
+assert((dimspace,1)==xsphere.shape)
 assert((dimx,1)==x0.shape)
 assert((dimx,1)==xtarg.shape)
-u = np.zeros((dimu,N)) #commande en vitesse : vx,vy ; nu * N
-dt = T/N
-x=np.tile(x0,(1,N+1)) #nx * N+1 #attention :  dtype float...
+assert(distsecu>0.)
+u = np.zeros((dimu,T)) #commande en vitesse : vx,vy ; nu * N
+x=np.tile(x0,(1,T+1)) #nx * N+1 #attention :  dtype float...
 Fx = np.eye(dimx)
-Fu = dt*np.eye(dimu)
+Fx[:dimspace,dimspace:]=dt*np.eye(dimspace)
+Fu = np.concatenate([0.5*dt**2*np.eye(dimspace),dt*np.eye(dimspace)])
 
 def next_state(x,u):
-    return x + u*dt
+    return Fx@x + Fu@u
 
 def costobstacle(x):
     distance = np.linalg.norm(x-xsphere)
@@ -42,7 +44,7 @@ def costobstacle(x):
                 
 def costx(x):
     Cx = xweight*np.eye(dimx)
-    return 0.5*(x-xtarg).T@Cx@(x-xtarg) + 100*costobstacle(x)
+    return 0.5*(x-xtarg).T@Cx@(x-xtarg) + 1000*costobstacle(x[:dimspace,:])
 
 def costu(u):
     Cu = uweight*np.eye(dimu)
@@ -112,7 +114,7 @@ def backwardpass(x,u):
     Vx.append(LxT(x[:,-1:]))
     Vxx.append(LxxT(x[:,-1:]))
 
-    for t in range(N-1,-1,-1): #N-1 a 0
+    for t in range(T-1,-1,-1): #N-1 a 0
         #at time t < T
         Qx = Lx(x[:,t:t+1]) + Fx.T@Vx[-1]
         Qu = Lu(u[:,t:t+1]) + Fu.T@Vx[-1]
@@ -127,9 +129,9 @@ def backwardpass(x,u):
     return k,K
 
 def forwardpass(k,K,x,u):
-    dx = np.zeros((dimx,N+1))
-    du = np.zeros((dimu,N))
-    for t in range (N):
+    dx = np.zeros((dimx,T+1))
+    du = np.zeros((dimu,T))
+    for t in range (T):
         du[:,t:t+1]=-k[-1]-K[-1]@dx[:,t:t+1]
         dx[:,t+1:t+2] = next_state(x[:,t:t+1]+dx[:,t:t+1],u[:,t:t+1]+du[:,t:t+1])-x[:,t+1:t+2]
         k.pop()
@@ -140,23 +142,24 @@ def forwardpass(k,K,x,u):
 
 def calcul_cout(x,u):
     sumcosts = 0.
-    for t in range(0,N):
+    for t in range(0,T):
         sumcosts += cost(x[:,t:t+1],u[:,t:t+1])
-    sumcosts += finalcost(x[:,N:N+1])
+    sumcosts += finalcost(x[:,T:T+1])
     return sumcosts
 
 def scatter_x(x,cercle=False):
     figure, axes = plt.subplots()
-    if (dimx==2):
+    if (dimspace==2):
         if(cercle):
             draw_circle = plt.Circle((xsphere[0:1,:], xsphere[1:2,:]), Rsphere,fill=False)
             draw_circle2 = plt.Circle((xsphere[0:1,:], xsphere[1:2,:]), Rsphere+distsecu,fill=False)
             axes.add_artist(draw_circle)
             axes.add_artist(draw_circle2)
         plt.scatter(x[0:1,:],x[1:2,:])
-    if(dimx==1):
+        plt.show()
+    if(dimspace==1):
         plt.scatter(x[0:1,:],np.zeros((1,x[0:1,:].shape[1])))
-    plt.show()
+        plt.show()
     
 def calcul_cout_et_affichage(x,u):
     print(calcul_cout(x,u))
