@@ -4,14 +4,14 @@ from numpy import linalg
 
 T = 100 #T+1 points
 dt = 0.01
-x0 = np.array([[-1.],[-1.],[-1.],[0.],[0.],[0.]]) #contrainte
-xtarg = np.array([[1.],[1.1],[1.2],[0.],[0.],[0.]])
-xweight = 10.
-uweight = .01
-xweightT = 1000.
-xsphere = np.array([[0.],[0.],[0.]]) #centre sphere
+x0 = np.array([[-2.],[-2.],[0.],[0.]]) #contrainte
+xtarg = np.array([[2.],[1.9],[0.],[0.]])
+xweight = 5.
+uweight = 1.e-1
+xweightT = 1.e1
+xsphere = np.array([[-0.0],[0.]]) #centre sphere
 Rsphere = .5 #vrai rayon sphere
-distsecu = .1 #ajout a variable precedente
+distsecu = .5 #ajout a variable precedente
 
 #####
 dimx = x0.shape[0]
@@ -42,7 +42,7 @@ def costobstacle(x):
                 
 def costx(x):
     Cx = xweight*np.eye(dimx)
-    return 0.5*(x-xtarg).T@Cx@(x-xtarg) + 10000*costobstacle(x[:dimspace,:])
+    return 0.5*(x-xtarg).T@Cx@(x-xtarg) + 1.e2*costobstacle(x[:dimspace,:])
 
 def costu(u):
     Cu = uweight*np.eye(dimu)
@@ -94,7 +94,7 @@ def Lxx(x):
     return hessien(costx)(x)
 
 def Luu(u):
-    return hessien(costu)(u)
+    return hessien(costu)(u) + 1.e-6*np.eye(dimu)
 
 def LxT(x):
     return gradient(finalcost)(x)
@@ -134,8 +134,11 @@ def forwardpass(k,K,x,u):
         dx[:,t+1:t+2] = next_state(x[:,t:t+1]+dx[:,t:t+1],u[:,t:t+1]+du[:,t:t+1])-x[:,t+1:t+2]
         k.pop()
         K.pop()
-    x+=dx
-    u+=du
+    alpha = 1.
+    while(calcul_cout(x,u)<calcul_cout(x+alpha*dx,u+alpha*du)):
+        alpha=alpha/2
+    x+=alpha*dx
+    u+=alpha*du
     return x,u
 
 def calcul_cout(x,u):
@@ -158,7 +161,7 @@ def scatter_x(x,cercle=False):
         plt.ylabel("x2")
         plt.scatter(x[0:1,:],x[1:2,:],s=3)
         plt.title("Trajectoire")
-        plt.savefig("trajectoire.png")
+        plt.savefig("trajectoire.png",dpi=1000)
     if(dimspace==1):
         plt.scatter(x[0:1,:],np.zeros((1,x[0:1,:].shape[1])))
         plt.title("Trajectoire")
@@ -187,5 +190,5 @@ def ddp(x,u,k):
         print(calcul_cout(x,u))
     return x,u
 
-x,u=ddp(x,u,2)
+x,u=ddp(x,u,10)
 calcul_cout_et_affichage(x,u)
