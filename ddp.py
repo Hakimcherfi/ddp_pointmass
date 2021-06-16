@@ -4,14 +4,16 @@ from numpy import linalg
 
 T = 100 #T+1 points
 dt = 0.01
-x0 = np.array([[-2.],[-2.],[0.],[0.]]) #contrainte
+x0 = np.array([[-3.],[-1.],[0.],[0.]]) #contrainte
 xtarg = np.array([[2.],[1.9],[0.],[0.]])
-xweight = 5.
-uweight = 1.e-1
-xweightT = 1.e1
+xweight = 1.e0
+uweight = 1.e0
+xweightT = 1.e5
 xsphere = np.array([[-0.0],[0.]]) #centre sphere
 Rsphere = .5 #vrai rayon sphere
-distsecu = .5 #ajout a variable precedente
+distsecu = .8 #ajout a variable precedente
+obstacleweight = 1.e5
+regularizationLuu = 1.e-6
 
 #####
 dimx = x0.shape[0]
@@ -42,7 +44,7 @@ def costobstacle(x):
                 
 def costx(x):
     Cx = xweight*np.eye(dimx)
-    return 0.5*(x-xtarg).T@Cx@(x-xtarg) + 1.e2*costobstacle(x[:dimspace,:])
+    return 0.5*(x-xtarg).T@Cx@(x-xtarg) + obstacleweight*costobstacle(x[:dimspace,:])
 
 def costu(u):
     Cu = uweight*np.eye(dimu)
@@ -94,7 +96,7 @@ def Lxx(x):
     return hessien(costx)(x)
 
 def Luu(u):
-    return hessien(costu)(u) + 1.e-6*np.eye(dimu)
+    return hessien(costu)(u) + regularizationLuu*np.eye(dimu)
 
 def LxT(x):
     return gradient(finalcost)(x)
@@ -183,12 +185,20 @@ def calcul_cout_et_affichage(x,u):
     scatter_x(x,True)
     lines(x,u)
 
-def ddp(x,u,k):
-    for i in range(k):
+def ddp(x,u):
+    i = 0
+    print("Cout initial : {}".format(calcul_cout(x,u)))
+    while True:
+        cout1 = calcul_cout(x,u)
         k,K = backwardpass(x,u)
         x,u = forwardpass(k,K,x,u)
-        print(calcul_cout(x,u))
+        cout2 = calcul_cout(x,u)
+        if np.isclose(cout2,cout1):
+            break
+        i+=1
+        print(cout2)
+    print("{} itérations pour converger".format(i))
     return x,u
 
-x,u=ddp(x,u,10)
+x,u=ddp(x,u)
 calcul_cout_et_affichage(x,u)
