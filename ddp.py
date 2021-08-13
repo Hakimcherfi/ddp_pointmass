@@ -3,17 +3,17 @@ from matplotlib import pyplot as plt
 from numpy import linalg
 
 T = 100 #T+1 points
-dt = 0.01
-x0 = np.array([[-3.],[-1.],[0.],[0.]]) #contrainte
-xtarg = np.array([[2.],[1.9],[0.],[0.]])
+dt = 0.1
+x0 = np.array([[-2.],[-3.],[0.],[0.]]) #contrainte
+xtarg = np.array([[0.],[0.],[0.],[0.]])
 xweight = 1.e0
-uweight = 1.e0
-xweightT = 1.e5
-xsphere = np.array([[-0.0],[0.]]) #centre sphere
-Rsphere = .5 #vrai rayon sphere
-distsecu = .8 #ajout a variable precedente
-obstacleweight = 1.e5
-regularizationLuu = 1.e-6
+uweight = 1.e2
+xweightT = 1.e4
+xsphere = np.array([[-1.],[-1.]]) #centre sphere
+Rsphere = .25 #vrai rayon sphere
+distsecu = .25 #ajout a variable precedente
+obstacleweight = 1.e3
+regularizationLuu = 0.e-6
 
 #####
 dimx = x0.shape[0]
@@ -162,11 +162,11 @@ def scatter_x(x,cercle=False):
         plt.xlabel("x1")
         plt.ylabel("x2")
         plt.scatter(x[0:1,:],x[1:2,:],s=3)
-        plt.title("Trajectoire")
+        plt.title("Trajectory")
         plt.savefig("trajectoire.png",dpi=1000)
     if(dimspace==1):
         plt.scatter(x[0:1,:],np.zeros((1,x[0:1,:].shape[1])))
-        plt.title("Trajectoire")
+        plt.title("Trajectory")
     
 def lines(x,u):
     t = np.linspace(0,T*dt,T+1)
@@ -178,7 +178,8 @@ def lines(x,u):
     ax1.legend()
     ax2.legend()
     ax3.legend()
-    fig.suptitle("Courbes")
+    fig.suptitle("DDP")
+    ax3.set_xlabel("Time (seconds)")
     plt.savefig("courbes.png",dpi=1000)
 
 def calcul_cout_et_affichage(x,u):
